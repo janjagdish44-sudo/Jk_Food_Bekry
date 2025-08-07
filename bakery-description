@@ -1,0 +1,332 @@
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, Cake, Clock, User, Mail, PlusCircle, ShoppingCart, ChevronDown } from 'lucide-react';
+
+const App = () => {
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTime, setSelectedTime] = useState(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    cakeType: 'Chocolate Fudge Cake',
+    notes: ''
+  });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Example time slots. In a real app, these would come from a backend.
+  const timeSlots = [
+    '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
+    '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'
+  ];
+  
+  // Custom Modal component for messages
+  const Modal = ({ isOpen, onClose, children }) => {
+    if (!isOpen) return null;
+  
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75 backdrop-blur-sm">
+        <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm text-gray-200">
+          {children}
+          <button
+            onClick={onClose}
+            className="mt-4 w-full bg-yellow-500 text-gray-900 py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+          >
+            Close
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Helper function to get the number of days in a month
+  const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  const daysInMonth = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
+
+  // Handle month navigation
+  const handlePrevMonth = () => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+  const handleNextMonth = () => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  // Check if a date is in the past
+  const isPastDate = (day) => {
+    const dateToCheck = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    dateToCheck.setHours(0, 0, 0, 0);
+    return dateToCheck < today;
+  };
+
+  const handleDateSelect = (day) => {
+    if (!isPastDate(day)) {
+      const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      setSelectedDate(newDate);
+      setSelectedTime(null); // Reset time when date changes
+    }
+  };
+
+  const handleTimeSelect = (time) => {
+    setSelectedTime(time);
+  };
+
+  const handleFormChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handlePlaceOrder = (e) => {
+    e.preventDefault();
+    if (!selectedDate || !selectedTime) {
+      setMessage('Please select both a date and a time.');
+      setIsModalOpen(true);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    // Prepare the message for WhatsApp
+    const whatsappNumber = '917470942937'; // Changed format to country code + number
+    const bookingSummary = `
+*--- New Cake Order ---*
+*Customer Name:* ${form.name}
+*Email:* ${form.email}
+*Cake Type:* ${form.cakeType}
+*Pickup/Delivery Date:* ${selectedDate.toDateString()}
+*Pickup/Delivery Time:* ${selectedTime}
+*Order Notes:* ${form.notes || 'N/A'}
+
+I look forward to hearing from you!
+`;
+
+    // Encode the message for the URL
+    const encodedMessage = encodeURIComponent(bookingSummary);
+    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+
+    // Redirect the user to WhatsApp
+    window.open(whatsappUrl, '_blank');
+
+    setMessage('Redirecting to WhatsApp to send your order. Please click "Send" on WhatsApp to finalize the booking.');
+    setIsModalOpen(true);
+    setIsSubmitting(false);
+
+    // Reset form and selections after redirection
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setForm({
+      name: '',
+      email: '',
+      cakeType: 'Chocolate Fudge Cake',
+      notes: ''
+    });
+  };
+
+  // Generate calendar days
+  const renderCalendarDays = () => {
+    const days = [];
+    // Add empty placeholders for the start of the month
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      days.push(<div key={`empty-${i}`} className="p-2"></div>);
+    }
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isSelected = selectedDate && selectedDate.getDate() === day && selectedDate.getMonth() === currentDate.getMonth();
+      const isPast = isPastDate(day);
+      days.push(
+        <button
+          key={day}
+          onClick={() => handleDateSelect(day)}
+          disabled={isPast}
+          className={`p-2 rounded-lg text-center font-medium transition-colors duration-200
+            ${isSelected ? 'bg-yellow-500 text-gray-900 shadow-md' :
+              isPast ? 'text-gray-500 cursor-not-allowed' :
+              'text-gray-200 hover:bg-yellow-500 hover:text-gray-900'
+            }
+          `}
+        >
+          {day}
+        </button>
+      );
+    }
+    return days;
+  };
+
+  // Main App component rendering
+  return (
+    <div className="min-h-screen bg-gray-900 font-inter text-gray-200 p-4 sm:p-8 flex items-center justify-center">
+      <div className="bg-gray-800 rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row">
+        {/* Left side: Order Form */}
+        <div className="p-8 md:w-1/2 flex-1 flex flex-col">
+          <h1 className="text-4xl font-extrabold text-yellow-400 mb-2">JK Food Bakery</h1>
+          <p className="text-gray-400 mb-8">Place your custom cake order here!</p>
+
+          <form onSubmit={handlePlaceOrder} className="flex-1 flex flex-col justify-between">
+            <div className="space-y-6">
+              {/* Customer Info */}
+              <div className="relative">
+                <User className="absolute top-1/2 left-3 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  name="name"
+                  value={form.name}
+                  onChange={handleFormChange}
+                  placeholder="Your Name"
+                  required
+                  className="w-full pl-10 p-3 rounded-lg border border-gray-600 bg-gray-700 text-gray-200 placeholder-gray-400 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors"
+                />
+              </div>
+              <div className="relative">
+                <Mail className="absolute top-1/2 left-3 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="email"
+                  name="email"
+                  value={form.email}
+                  onChange={handleFormChange}
+                  placeholder="Your Email"
+                  required
+                  className="w-full pl-10 p-3 rounded-lg border border-gray-600 bg-gray-700 text-gray-200 placeholder-gray-400 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors"
+                />
+              </div>
+
+              {/* Cake Details */}
+              <div className="relative">
+                <Cake className="absolute top-1/2 left-3 transform -translate-y-1/2 text-gray-400" size={20} />
+                <select
+                  name="cakeType"
+                  value={form.cakeType}
+                  onChange={handleFormChange}
+                  className="w-full pl-10 p-3 rounded-lg border border-gray-600 bg-gray-700 text-gray-200 appearance-none transition-colors"
+                >
+                  <option>Chocolate Fudge Cake</option>
+                  <option>Vanilla Sponge Cake</option>
+                  <option>Red Velvet Cake</option>
+                  <option>Strawberry Delight Cake</option>
+                </select>
+                <ChevronDown className="absolute top-1/2 right-3 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+              </div>
+
+              {/* Order Notes */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-400 mb-1">
+                  Order Notes (optional)
+                </label>
+                <textarea
+                  name="notes"
+                  value={form.notes}
+                  onChange={handleFormChange}
+                  rows="3"
+                  className="w-full p-3 rounded-lg border border-gray-600 bg-gray-700 text-gray-200 placeholder-gray-400 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors"
+                  placeholder="E.g., 'Happy Birthday' message, specific icing color."
+                />
+              </div>
+
+              {/* Booking Summary */}
+              {selectedDate && selectedTime && (
+                <div className="bg-gray-700 border-l-4 border-yellow-500 p-4 rounded-lg shadow-inner">
+                  <h3 className="font-bold text-yellow-400 mb-2 flex items-center">
+                    <ShoppingCart size={20} className="mr-2" /> Booking Summary
+                  </h3>
+                  <p className="text-sm text-gray-300">
+                    <span className="font-semibold">Pickup/Delivery Date:</span> {selectedDate.toDateString()}
+                  </p>
+                  <p className="text-sm text-gray-300">
+                    <span className="font-semibold">Pickup/Delivery Time:</span> {selectedTime}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <button
+              type="submit"
+              disabled={isSubmitting || !selectedDate || !selectedTime}
+              className={`w-full flex items-center justify-center py-3 px-6 rounded-lg text-white font-bold text-lg mt-8 transition-all duration-300
+                ${isSubmitting ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 shadow-lg'}
+              `}
+            >
+              {isSubmitting ? (
+                <svg className="animate-spin h-5 w-5 text-white mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+                  <path d="M12.0007 2C6.48624 2 2 6.47715 2 12C2 14.1207 2.69533 16.1132 3.90159 17.7282L2.09117 22.0838L6.68538 20.916C8.01639 21.688 9.54477 22.0838 11.0963 22.0838H11.099C16.6083 22.0838 21.0963 17.6067 21.0963 12.0924C21.0963 6.57805 16.6083 2.0924 11.099 2.0924H11.0963L11.0952 2H12.0007ZM16.3267 15.3402C16.1415 15.8202 15.1764 16.3533 14.6558 16.5165C14.1352 16.6797 13.6253 16.7582 13.0644 16.5925C12.5035 16.4268 11.1387 15.9382 9.69755 14.6309C8.25633 13.3236 7.4259 11.9961 7.16568 11.5161C6.90547 11.0361 6.84534 10.4674 7.03058 9.98745C7.21582 9.50745 7.50982 9.1738 7.79468 8.87948C8.07954 8.58516 8.36866 8.35824 8.65349 8.08343C8.93832 7.80862 9.10984 7.73279 9.3897 7.72517C9.66956 7.71754 9.96349 7.72147 10.233 7.72147C10.5025 7.72147 10.8718 7.73708 11.233 8.65343C11.5943 9.56978 11.9636 10.5186 12.0673 10.7455C12.1711 10.9723 12.2312 11.0858 12.1274 11.3126C12.0237 11.5395 11.8522 11.7587 11.7857 11.8346C11.7192 11.9104 11.6669 11.988 11.5593 12.1121C11.4517 12.2361 11.3323 12.358 11.4704 12.6328C11.6084 12.9076 12.0913 13.6823 12.9818 14.4862C13.8723 15.2901 14.6064 15.5218 14.8219 15.6559C15.0374 15.7901 15.3402 15.7533 15.5255 15.5681C15.7107 15.3829 16.3267 14.7335 16.5119 15.1169C16.6971 15.5003 16.6971 16.0334 16.5119 16.2602C16.3267 16.4871 15.9376 16.6806 15.5562 16.9405C15.1748 17.2005 14.8693 17.2882 14.5998 17.2882C14.3303 17.2882 14.0708 17.2005 13.8013 17.0679L13.2981 16.7915L12.7949 16.5152L12.2539 16.2602C11.7129 16.0053 11.1305 15.7368 10.5976 15.4673C10.0647 15.1979 9.53185 14.9284 9.0886 14.5947L8.5276 14.1166L8.13459 13.6385C7.74158 13.1604 7.4259 12.7936 7.24066 12.4086C7.05542 12.0236 6.96782 11.6669 6.96782 11.3101V11.2339C6.96782 10.8772 7.05542 10.5195 7.24066 10.1627C7.4259 9.80596 7.74158 9.38719 8.13459 9.06079C8.5276 8.73439 8.95079 8.44007 9.3897 8.18843C9.8286 7.93679 10.2798 7.78161 10.7413 7.70578C11.2028 7.62994 11.5695 7.62994 11.9363 7.70578L12.6393 7.86895C12.6393 7.86895 12.6393 7.86895 12.6393 7.86895L12.6393 7.86895Z" fill="white"/>
+                </svg>
+              )}
+              {isSubmitting ? 'Redirecting...' : 'Book via WhatsApp'}
+            </button>
+          </form>
+        </div>
+
+        {/* Right side: Calendar and Time Slots */}
+        <div className="p-8 md:w-1/2 bg-gray-700 border-t md:border-t-0 md:border-l border-gray-600">
+          <h2 className="text-2xl font-bold text-yellow-400 mb-6 flex items-center">
+            <Clock size={24} className="mr-2" /> Select Pickup/Delivery
+          </h2>
+
+          {/* Calendar Header */}
+          <div className="flex justify-between items-center mb-6">
+            <button onClick={handlePrevMonth} className="p-2 rounded-full hover:bg-gray-600 transition-colors">
+              <ChevronLeft size={24} className="text-yellow-400" />
+            </button>
+            <h3 className="text-xl font-bold text-gray-200">
+              {currentDate.toLocaleString('default', { month: 'long' })} {currentDate.getFullYear()}
+            </h3>
+            <button onClick={handleNextMonth} className="p-2 rounded-full hover:bg-gray-600 transition-colors">
+              <ChevronRight size={24} className="text-yellow-400" />
+            </button>
+          </div>
+
+          {/* Days of the week header */}
+          <div className="grid grid-cols-7 text-center text-sm font-semibold text-gray-400 mb-2">
+            <div>Sun</div>
+            <div>Mon</div>
+            <div>Tue</div>
+            <div>Wed</div>
+            <div>Thu</div>
+            <div>Fri</div>
+            <div>Sat</div>
+          </div>
+
+          {/* Calendar Grid */}
+          <div className="grid grid-cols-7 gap-2">
+            {renderCalendarDays()}
+          </div>
+          
+          {/* Time Slots */}
+          {selectedDate && (
+            <div className="mt-8">
+              <h4 className="text-lg font-bold text-gray-200 mb-4">
+                Select a Time for {selectedDate.toDateString()}
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {timeSlots.map(slot => (
+                  <button
+                    key={slot}
+                    onClick={() => handleTimeSelect(slot)}
+                    className={`py-2 px-4 rounded-lg text-sm font-semibold transition-colors duration-200
+                      ${selectedTime === slot ? 'bg-yellow-500 text-gray-900 shadow-md' : 'bg-gray-800 text-gray-200 hover:bg-yellow-500 hover:text-gray-900 border border-gray-600'}
+                    `}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <p className="text-center text-lg text-gray-200">{message}</p>
+      </Modal>
+    </div>
+  );
+};
+
+export default App;
